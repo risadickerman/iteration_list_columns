@@ -1,6 +1,4 @@
 # iteration_list_columns
-<<<<<<< HEAD
-=======
 
 
 for_loops
@@ -36,4 +34,3 @@ List columns
     -extremely useful, can consolidate everything:
       -column and data frame/ nice and organized
       -a lot of tidyverse stuff: iteration to get there
->>>>>>> 820746c (inital commit)
