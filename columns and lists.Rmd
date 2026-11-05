@@ -1,0 +1,265 @@
+---
+title: "List Columns"
+author: "Risa Dickerman"
+date: "2026-11-05"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(rvest)
+library(p8105.datasets)
+```
+
+## Attaching package: 'rvest'
+## The following object is masked from 'package:readr':
+## 
+##     guess_encoding
+```{r}
+set.seed(1)
+```
+
+
+## Lists...
+Prove that lists can have anything
+
+```{r}
+
+l = list(
+  vec_numeric = 5:17,
+  mat = matrix(1:8, nrow = 2, ncol = 4, byrow = TRUE),
+  vec_logical = c(TRUE),
+  summary_table = summary(rnorm(1000)))
+
+l
+
+l[[1]]
+#$ is a shorthand for double brackets
+l[[2]]
+l[["vec_logical"]]
+```
+
+
+## 'for' loops
+
+```{r}
+list_norm = list(
+  a = rnorm(20, 3, 4),
+  b = rnorm(20, -14, 20),
+  c = rnorm(20, 1000, 1000),
+  d = rnorm(20, 0, 1)
+)
+list_norm 
+```
+
+Can I get mean and sd for each sample
+
+
+```{r}
+source("source_mean_sd.R")
+```
+
+
+```{r}
+mean_and_sd(list_norm[[1]])
+mean_and_sd(list_norm[[2]])
+mean_and_sd(list_norm[[3]])
+mean_and_sd(list_norm[[4]])
+```
+
+Can I do this better?
+```{r}
+output = vector("list", length = 4)
+for(i in 1:4) {
+  output[[i]] = mean_and_sd(list_norm[[i]])
+}
+output
+```
+
+## 'map' instead
+1. Take for loop and modify to make logic a little more clear
+2. eventually take statements and build them into tidyverse operations
+
+This is bettter:
+```{r}
+output = map(list_norm, mean_and_sd)
+
+output_2 = map(list_norm, IQR)
+
+output
+output_2
+```
+output - place we're going to save it
+list_norm = list input
+mean_and_sd = function to apply to list
+
+
+# What about map variants
+
+```{r}
+output_3 = map_df(list_norm, mean_and_sd)
+output_4 = map_dbl(list_norm, median)
+
+output_3
+output_4
+```
+way to simplify output
+
+map_dbl = just collapsing everything to a simple output structure
+  -regular map always gives you a list
+  -this just gives you a vector
+
+## List columns
+
+Time to make list columns
+```{r}
+listcol_df = 
+  tibble(
+    name = c("a", "b", "c", "d"),
+    samp = list_norm
+  )
+listcol_df
+```
+named list column: collection of 20 numbers for samp 1
+
+Do stuff with this
+
+```{r}
+listcol_df |> 
+  filter(name %in% c("a", "b", "c"))
+
+listcol_df |> 
+  pull(samp)
+```
+
+What about mean and sd
+```{r}
+mean_and_sd(pull(listcol_df, samp)[[1]])
+```
+
+Can I iterate?
+```{r}
+map(pull(listcol_df, samp), mean_and_sd)
+```
+
+This is where it gets really cool
+Apply sd to each of these thigns and save the results:
+```{r}
+listcol_df |> 
+  mutate(
+    output = map(samp, mean_and_sd)
+  )
+
+listcol_df |> 
+  mutate(
+    output = map_df(samp, mean_and_sd)
+  )
+
+listcol_df |> 
+  mutate(
+    output = map_dbl(samp, mean_and_sd[[1]])
+  )
+```
+
+## Another example
+
+NSDUH import etc
+
+```{r}
+source("nsduh_process.R")
+```
+
+```{r}
+nsduh_url = "https://www.samhsa.gov/data/sites/default/files/NSDUHsaeShortTermCHG2015/NSDUHsaeShortTermCHG2015.htm"
+
+nsduh_html = read_html(nsduh_url)
+
+nsduh_process(html = nsduh_html, table_num = 1)
+nsduh_process(html = nsduh_html, table_num = 4)
+nsduh_process(html = nsduh_html, table_num = 5)
+```
+
+import using iteration
+
+```{r}
+
+output = vector("list", length = 3)
+
+table_num = c(1,4,5)
+
+for (i in 1:3) {
+  output [[i]] = nsduh_process(html = nsduh_html, table_num = table_num[i])
+}
+```
+
+
+let's build up a map example
+```{r}
+map(table_num, nsduh_process, html = nsduh_html)
+```
+
+
+Lets try list columns
+```{r}
+
+nsduh_df = 
+  tibble(
+    drug = c("marj", "cocaine", "heroin"),
+    num = c(1, 4, 5)
+  ) |> 
+  mutate(
+    table = map(num, nsduh_process, html = nsduh_html)
+  ) |> 
+  select(-num) |> 
+  unnest(table)
+
+nsduh_df |> 
+  filter(age == "12-17", ) |> 
+  mutate(State = fct_reorder(State, percent)) |> 
+  ggplot(aes(x = State, y = percent, color = year)) +
+  geom_point() +
+  facet_grid(. ~ drug)
+
+nsduh_df 
+```
+before unnest have data frame: 3 rows: drug and full table imported, etc
+unnest - can unnest and expand those
+
+## Weather again
+
+```{r}
+data("weather_df")
+
+weather_df = 
+  weather_df |> 
+  nest(data = date:tmin)
+```
+
+
+Why would you want to do that:
+suppose you want regress: tmax vs tmin: way to do that:
+```{r}
+lm(tmax ~ tmin, data = pull(weather_df, data)[[1]])
+lm(tmax ~ tmin, data = pull(weather_df, data)[[2]])
+lm(tmax ~ tmin, data = pull(weather_df, data)[[3]])
+
+weather_lm = function(input_data) {
+  
+  lm(tmax ~ tmin, data = input_data)
+}
+weather_lm(pull(weather_df, data)[[1]])
+
+weather_df |> 
+  mutate(lm_fits = map(data, weather_lm)
+         ) |> 
+  pull(lm_fits)
+```
+linear regression model that pulls tmax vs tmin for model dataset: function takes entire dataset and gives data set that fits the model
+
+Applying that function to this dataset and apply to each of the datasets
+
+If want to fit linear model to each column of weather dataframe. Going to mutate to use function to each col of data frame. Add column right next to it to compare side by side
+
+Function simplifies this output: just using lm is complicated but just having one input will simplify and result in a function 
+
+If you want to keep track of data with each center, need to use this function.
