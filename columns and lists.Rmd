@@ -28,7 +28,7 @@ Prove that lists can have anything
 l = list(
   vec_numeric = 5:17,
   mat = matrix(1:8, nrow = 2, ncol = 4, byrow = TRUE),
-  vec_logical = c(TRUE),
+  vec_logical = c(TRUE, FALSE, FALSE),
   summary_table = summary(rnorm(1000)))
 
 l
@@ -46,9 +46,8 @@ l[["vec_logical"]]
 list_norm = list(
   a = rnorm(20, 3, 4),
   b = rnorm(20, -14, 20),
-  c = rnorm(20, 1000, 1000),
-  d = rnorm(20, 0, 1)
-)
+  c = rnorm(30, 1000, 1000),
+  d = rnorm(20, 0, 1))
 list_norm 
 ```
 
@@ -68,6 +67,7 @@ mean_and_sd(list_norm[[4]])
 ```
 
 Can I do this better?
+For loop:
 ```{r}
 output = vector("list", length = 4)
 for(i in 1:4) {
@@ -139,11 +139,13 @@ mean_and_sd(pull(listcol_df, samp)[[1]])
 
 Can I iterate?
 ```{r}
-map(pull(listcol_df, samp), mean_and_sd)
+map_df(
+  pull(listcol_df, samp), mean_and_sd
+  )
 ```
 
 This is where it gets really cool
-Apply sd to each of these thigns and save the results:
+Apply sd to each of these thinss and save the results:
 ```{r}
 listcol_df |> 
   mutate(
@@ -157,11 +159,12 @@ listcol_df |>
 
 listcol_df |> 
   mutate(
-    output = map_dbl(samp, mean_and_sd[[1]])
+    output = map(samp, mean_and_sd),
+    medians = map_dbl(samp, median)
   )
 ```
 
-## Another example
+## Weather data
 
 NSDUH import etc
 
@@ -246,13 +249,20 @@ lm(tmax ~ tmin, data = pull(weather_df, data)[[3]])
 weather_lm = function(input_data) {
   
   lm(tmax ~ tmin, data = input_data)
+  
 }
+
+output = vector("list", 3)
+for (i in 1:3) {
+output[[i]] = weather_lm(weather_df$data[[i]])
+}
+
 weather_lm(pull(weather_df, data)[[1]])
+
 
 weather_df |> 
   mutate(lm_fits = map(data, weather_lm)
-         ) |> 
-  pull(lm_fits)
+         )
 ```
 linear regression model that pulls tmax vs tmin for model dataset: function takes entire dataset and gives data set that fits the model
 
